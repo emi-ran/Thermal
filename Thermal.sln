@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Thermal", "Thermal.csproj", "{76691309-39F4-BCAB-AF74-275FE6620CAE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{76691309-39F4-BCAB-AF74-275FE6620CAE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{76691309-39F4-BCAB-AF74-275FE6620CAE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{76691309-39F4-BCAB-AF74-275FE6620CAE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{76691309-39F4-BCAB-AF74-275FE6620CAE}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B82612BA-39BF-4BA9-984F-A2E672A8FEFA}
+	EndGlobalSection
+EndGlobal
