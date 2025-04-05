@@ -3,7 +3,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 
-namespace Thermal
+namespace Thermal.Presentation
 {
     internal class OverlayWindow : IDisposable
     {

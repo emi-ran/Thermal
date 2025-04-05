@@ -2,8 +2,9 @@ using Microsoft.Win32; // Registry işlemleri için
 using System;
 using System.Drawing;
 using System.Globalization; // Sayı formatları için
+using Thermal.Core; // AppSettings için using eklendi
 
-namespace Thermal
+namespace Thermal.Persistence // Namespace güncellendi
 {
     /// <summary>
     /// Uygulama ayarlarını Windows Kayıt Defteri'ne kaydeder ve yükler.

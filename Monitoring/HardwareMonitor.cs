@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using LibreHardwareMonitor.Hardware;
 
-namespace Thermal
+namespace Thermal.Monitoring
 {
     internal class HardwareMonitor : IDisposable
     {

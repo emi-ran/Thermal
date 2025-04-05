@@ -1,6 +1,6 @@
 using System.Drawing;
 
-namespace Thermal
+namespace Thermal.Core
 {
     /// <summary>
     /// Uygulama ayarlarını tutan sınıf.

@@ -1,4 +1,4 @@
-namespace Thermal
+namespace Thermal.Presentation
 {
     partial class SettingsForm
     {
@@ -382,7 +382,7 @@ namespace Thermal
             this.groupBox3.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numHideDelay)).EndInit();
             this.ResumeLayout(false);
-
+            this.PerformLayout();
         }
 
         #endregion

@@ -2,7 +2,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace Thermal
+namespace Thermal.Presentation
 {
     internal class SystemTrayHandler : IDisposable
     {

@@ -2,8 +2,9 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Globalization;
+using Thermal.Core;
 
-namespace Thermal
+namespace Thermal.Presentation
 {
     public partial class SettingsForm : Form
     {

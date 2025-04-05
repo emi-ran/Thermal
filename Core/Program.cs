@@ -4,8 +4,11 @@ using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Threading; // Timer için
 using LibreHardwareMonitor.Hardware; // Gerekli using ifadesi
+using Thermal.Monitoring;
+using Thermal.Presentation;
+using Thermal.Persistence;
 
-namespace Thermal
+namespace Thermal.Core
 {
     internal static class Program
     {
@@ -38,7 +41,7 @@ namespace Thermal
         static void Main()
         {
             // Hata ayıklama için konsolu aktif et (isteğe bağlı)
-            AllocConsole();
+            // AllocConsole();
             Console.WriteLine("Uygulama Başlatılıyor...");
 
             ApplicationConfiguration.Initialize();
@@ -53,7 +56,7 @@ namespace Thermal
                 return;
             }
 
-            // Ayarları Yükle (Registry'den veya varsayılan)
+            // Ayarları Yükle
             appSettings = RegistryHandler.LoadSettings();
             // AutoHideEnabled durumu artık Registry'den yüklenen ayarlara göre değil,
             // programın mantığına göre (varsayılan kapalı, menüden kontrol) belirlenmeli.
