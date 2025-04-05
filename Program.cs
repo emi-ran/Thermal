@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Threading; // Timer için
+using LibreHardwareMonitor.Hardware; // Gerekli using ifadesi
 
 namespace Thermal
 {
@@ -12,14 +13,16 @@ namespace Thermal
         private static HardwareMonitor? hardwareMonitor;
         private static OverlayWindow? overlayWindow;
         private static SystemTrayHandler? systemTrayHandler;
+        private static AppSettings appSettings = new AppSettings(); // Ayarları tutacak nesne
         private static System.Windows.Forms.Timer? updateTimer;
         private static System.Windows.Forms.Timer? mouseCheckTimer;
-        private static System.Windows.Forms.Timer? hideDelayTimer; // Genel gizleme gecikme timer'ı
-
-        // Durum değişkenleri
-        private static bool autoHideEnabled = false;
-        private static bool isHighTemperature = false;
-        private static bool mouseIsInHotZone = false;
+        private static Point lastMousePosition = Point.Empty;
+        private static DateTime lastMouseMoveTime = DateTime.MinValue;
+        private static bool isMouseOverHotZone = false; // Anlık durumu hala tutabiliriz, ancak kararları stabil olana göre vereceğiz.
+        private static bool isMouseOverHotZoneStable = false; // Farenin bölgedeki kararlı durumu
+        private static int hotZoneConsecutiveTicks = 0; // Kararlı duruma geçiş için sayaç
+        private const int HOT_ZONE_STABILITY_THRESHOLD = 5; // Kararlılık için gereken tick sayısı (5 * 100ms = 500ms)
+        private static bool autoHideEnabled = false; // Başlangıçta otomatik gizleme KAPALI
 
         // Sabitler
         private const int SHORT_INTERVAL = 10000; // 10 saniye
@@ -35,270 +38,312 @@ namespace Thermal
             Console.WriteLine("Uygulama Başlatılıyor...");
 
             ApplicationConfiguration.Initialize();
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
 
-            // Donanım Monitörünü Başlat
-            hardwareMonitor = new HardwareMonitor();
-            if (!hardwareMonitor.Initialize())
+            Mutex mutex = new Mutex(true, "ThermalAppMutex", out bool createdNew);
+            if (!createdNew)
             {
-                FreeConsole();
-                return; // Başlatma başarısızsa çık
+                MessageBox.Show("Uygulama zaten çalışıyor.", "Thermal", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
 
-            // Overlay Penceresini Oluştur
-            overlayWindow = new OverlayWindow();
-            overlayWindow.Shown += OnOverlayShown; // Gösterildiğinde olayını dinle
+            // TODO: AppSettings'i dosyadan yükleme (varsa)
+            // appSettings = AppSettings.Load() ?? new AppSettings();
+            autoHideEnabled = appSettings.EnableMouseHoverShow; // Ayarlardan başlangıç değerini al
 
-            // Sistem Tepsisi Yöneticisini Oluştur
-            systemTrayHandler = new SystemTrayHandler();
-            systemTrayHandler.ExitRequested += OnExitRequested;
-            systemTrayHandler.AutoHideChanged += OnAutoHideChanged;
-
-            // Zamanlayıcıları Ayarla
-            SetupTimers();
-
-            // İlk Güncellemeyi Yap
-            UpdateDisplayAndState();
-
-            // Overlay'i Göster ve Zamanlayıcıları Başlat
-            overlayWindow.Show();
-            updateTimer?.Start();
-            mouseCheckTimer?.Start();
-
-            Console.WriteLine("Uygulama Başlatıldı ve Çalışıyor.");
-            Application.Run(); // Ana mesaj döngüsü
-        }
-
-        // Zamanlayıcıları Ayarla
-        private static void SetupTimers()
-        {
-            updateTimer = new System.Windows.Forms.Timer { Interval = SHORT_INTERVAL };
-            updateTimer.Tick += (s, e) => UpdateDisplayAndState();
-
-            mouseCheckTimer = new System.Windows.Forms.Timer { Interval = MOUSE_CHECK_INTERVAL };
-            mouseCheckTimer.Tick += MouseCheckTimer_Tick;
-
-            // hideDelayTimer ihtiyaç anında oluşturulup başlatılacak
-        }
-
-        // Overlay Gösterildiğinde Çalışacak Olay
-        private static void OnOverlayShown(object? sender, EventArgs e)
-        {
-            Console.WriteLine("Overlay Penceresi Gösterildi.");
-            // Otomatik gizle açıksa ve özel durumlar yoksa gizleme timer'ını başlat
-            CheckAndStartHideTimer();
-        }
-
-        // Sistem Tepsisi - Otomatik Gizle Değiştiğinde
-        private static void OnAutoHideChanged(object? sender, bool isEnabled)
-        {
-            autoHideEnabled = isEnabled;
-            StopAndDisposeTimer(ref hideDelayTimer); // Mevcut gecikmeyi iptal et
-
-            if (autoHideEnabled)
-            {
-                // Görünürse ve özel durum yoksa gizleme timer'ını başlat
-                CheckAndStartHideTimer();
-                // Eğer gizliyse interval'i ayarla
-                if (overlayWindow != null && !overlayWindow.IsVisible && !isHighTemperature)
-                {
-                    SetUpdateInterval(LONG_INTERVAL);
-                }
-            }
-            else // Otomatik gizle kapatıldı
-            {
-                overlayWindow?.FadeIn();
-                SetUpdateInterval(SHORT_INTERVAL);
-            }
-        }
-
-        // Sistem Tepsisi - Çıkış İstendiğinde
-        private static void OnExitRequested(object? sender, EventArgs e)
-        {
-            CleanupAndExit();
-        }
-
-        // Ana Güncelleme ve Durum Kontrolü
-        private static void UpdateDisplayAndState()
-        {
-            if (hardwareMonitor == null || overlayWindow == null) return;
-
-            // Console.WriteLine("\nUpdateDisplayAndState Başladı...");
+            // Donanım Monitörü başlat
             try
             {
-                hardwareMonitor.UpdateSensors();
-
-                float cpuTemperature = hardwareMonitor.GetCpuTemperature();
-                float gpuTemperature = hardwareMonitor.GetGpuTemperature();
-                overlayWindow.UpdateLabel("CPU", cpuTemperature);
-                overlayWindow.UpdateLabel("GPU", gpuTemperature);
-
-                bool wasHighTemperature = isHighTemperature;
-                isHighTemperature = (cpuTemperature >= 70 || (gpuTemperature >= 70 && overlayWindow.IsVisible)); // Sadece görünür GPU
-
-                // Console.WriteLine($" Tick - CPU: {cpuTemperature:F0}, GPU: {gpuTemperature:F0}, HighTemp: {isHighTemperature}, AutoHide: {autoHideEnabled}, Visible: {overlayWindow.IsVisible}, Fading: {overlayWindow.IsFading}, MouseIn: {mouseIsInHotZone}");
-
-                // Durum değişikliklerini işle
-                if (isHighTemperature && !wasHighTemperature) // Yüksek sıcaklık yeni başladı
+                hardwareMonitor = new HardwareMonitor();
+                if (!hardwareMonitor.Initialize()) // Initialize çağır
                 {
-                    Console.WriteLine("Yüksek Sıcaklık Algılandı! Gösteriliyor...");
-                    StopAndDisposeTimer(ref hideDelayTimer);
-                    overlayWindow.FadeIn();
-                    SetUpdateInterval(SHORT_INTERVAL);
+                    throw new Exception("LibreHardwareMonitor başlatılamadı.");
                 }
-                else if (!isHighTemperature && wasHighTemperature) // Yüksek sıcaklık yeni bitti
-                {
-                    Console.WriteLine("Yüksek Sıcaklık Düştü.");
-                    CheckAndStartHideTimer(); // Gizleme koşulları uygunsa timer'ı başlat
-                }
+                Console.WriteLine("HardwareMonitor başlatıldı.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Donanım izleyici başlatılamadı: {ex.Message}", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Cleanup(mutex);
+                return;
+            }
 
-                // Yüksek sıcaklık yoksa interval'i ayarla
-                if (!isHighTemperature)
-                {
-                    if (autoHideEnabled && !overlayWindow.IsVisible && !overlayWindow.IsFading)
-                    {
-                        SetUpdateInterval(LONG_INTERVAL);
-                    }
-                    else // Oto gizle kapalı veya görünürse (ve fade olmuyorsa)
-                    {
-                        SetUpdateInterval(SHORT_INTERVAL);
-                    }
-                }
+            // OverlayWindow oluştur ve başlangıç ayarlarını uygula
+            overlayWindow = new OverlayWindow();
+            ApplySettings(); // Başlangıç renk/eşik ayarlarını uygula
 
-                // Konumu her zaman ayarla (label boyutları değişmiş olabilir)
+            // << YENİ BAŞLANGIÇ GÜNCELLEMESİ >>
+            try
+            {
+                if (hardwareMonitor != null)
+                {
+                    hardwareMonitor.UpdateSensors(); // İlk okumayı yap
+                    float initialCpuTemp = hardwareMonitor.GetCpuTemperature();
+                    float initialGpuTemp = hardwareMonitor.GetGpuTemperature();
+                    overlayWindow.UpdateLabel("CPU", initialCpuTemp > 0 ? initialCpuTemp : -1);
+                    overlayWindow.UpdateLabel("GPU", initialGpuTemp > 0 ? initialGpuTemp : -1);
+                    overlayWindow.PositionOverlay(); // Labellar güncellendikten sonra ilk konumlandırmayı yap
+                    Console.WriteLine("İlk sıcaklık okuması ve konumlandırma yapıldı.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"İlk güncelleme sırasında hata: {ex.Message}");
+                // Hata olsa bile devam et, timer ile düzelebilir.
+            }
+            // << YENİ BAŞLANGIÇ GÜNCELLEMESİ SONU >>
+
+            overlayWindow.Shown += OverlayWindow_Shown;
+            Console.WriteLine("OverlayWindow oluşturuldu.");
+
+            // Sistem Tepsisi Yöneticisi oluştur ve olayları bağla
+            systemTrayHandler = new SystemTrayHandler();
+            systemTrayHandler.ExitRequested += OnExitRequested;
+            systemTrayHandler.AutoHideChanged += OnAutoHideChanged; // Doğru olay adı
+            systemTrayHandler.SettingsRequested += OnSettingsRequested;
+            systemTrayHandler.SetAutoHideState(autoHideEnabled); // Doğru metot adı
+            Console.WriteLine("SystemTrayHandler oluşturuldu.");
+
+            // Timer'ları ayarla
+            SetupTimers();
+            Console.WriteLine("Timer'lar ayarlandı.");
+
+            // Overlay'ı göster
+            overlayWindow.Show();
+
+            // Uygulama mesaj döngüsünü başlat
+            Application.Run();
+
+            // Uygulama kapanırken temizlik yap
+            Cleanup(mutex);
+            Console.WriteLine("Uygulama kapatıldı.");
+        }
+
+        private static void OverlayWindow_Shown(object? sender, EventArgs e)
+        {
+            StartTimers();
+            Console.WriteLine("Overlay gösterildi, timer'lar başlatıldı.");
+        }
+
+        private static void SetupTimers()
+        {
+            updateTimer = new System.Windows.Forms.Timer();
+            updateTimer.Tick += UpdateTimer_Tick;
+            SetUpdateInterval();
+
+            mouseCheckTimer = new System.Windows.Forms.Timer { Interval = 100 };
+            mouseCheckTimer.Tick += MouseCheckTimer_Tick;
+        }
+
+        private static void StartTimers()
+        {
+            lastMouseMoveTime = DateTime.Now; // Fare hareket zamanını başlat
+            updateTimer?.Start();
+            mouseCheckTimer?.Start();
+            Console.WriteLine("Timer'lar başlatıldı.");
+        }
+
+        private static void StopTimers()
+        {
+            updateTimer?.Stop();
+            mouseCheckTimer?.Stop();
+            Console.WriteLine("Timer'lar durduruldu.");
+        }
+
+        private static void SetUpdateInterval()
+        {
+            if (updateTimer != null)
+            {
+                // Kararlı durumu kullan
+                bool useShortInterval = isMouseOverHotZoneStable || !autoHideEnabled;
+                int newInterval = useShortInterval ? appSettings.ShortUpdateIntervalMs : appSettings.LongUpdateIntervalMs;
+                if (updateTimer.Interval != newInterval)
+                {
+                    updateTimer.Interval = newInterval;
+                    Console.WriteLine($"Update interval ayarlandı: {updateTimer.Interval}ms (Stabil Bölgede: {isMouseOverHotZoneStable}, AutoHide: {autoHideEnabled}, Kısa mı: {useShortInterval})");
+                }
+            }
+        }
+
+        private static void UpdateTimer_Tick(object? sender, EventArgs e)
+        {
+            if (hardwareMonitor == null || overlayWindow == null || !overlayWindow.IsHandleCreated)
+                return;
+            try
+            {
+                hardwareMonitor.UpdateSensors(); // Doğru metot adı
+
+                float cpuTemp = hardwareMonitor.GetCpuTemperature(); // Doğru metot adı
+                float gpuTemp = hardwareMonitor.GetGpuTemperature(); // Doğru metot adı
+
+                overlayWindow.UpdateLabel("CPU", cpuTemp > 0 ? cpuTemp : -1);
+                overlayWindow.UpdateLabel("GPU", gpuTemp > 0 ? gpuTemp : -1);
                 overlayWindow.PositionOverlay();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($" Güncelleme hatası: {ex.Message}");
-                // Hata durumunda belki labelleri gizlemek iyi olabilir
-                overlayWindow?.UpdateLabel("CPU", -1); // Gizle
-                overlayWindow?.UpdateLabel("GPU", -1); // Gizle
+                Console.WriteLine($"UpdateTimer_Tick Hata: {ex.Message}");
             }
-            // Console.WriteLine(" UpdateDisplayAndState Bitti.");
+            // Kararlı durumu kullanarak CheckAutoHideLogic çağır
+            if (autoHideEnabled) CheckAutoHideLogic(isMouseOverHotZoneStable);
         }
 
-        // Fare Konumu Kontrolü
         private static void MouseCheckTimer_Tick(object? sender, EventArgs e)
         {
-            if (overlayWindow == null || !autoHideEnabled || isHighTemperature || overlayWindow.IsFading || !overlayWindow.IsHandleCreated)
-            {
-                if (mouseIsInHotZone)
-                {
-                    mouseIsInHotZone = false;
-                    CheckAndStartHideTimer(); // Bölgeden çıkıldı, gizleme koşulları uygunsa başlat
-                }
+            if (overlayWindow == null || !overlayWindow.IsHandleCreated)
                 return;
-            }
-
             try
             {
-                Point cursorPos = Cursor.Position;
-                bool currentlyInHotZone = overlayWindow.HotZone.Contains(cursorPos);
-
-                if (currentlyInHotZone && !mouseIsInHotZone)
+                Point currentMousePosition = Cursor.Position;
+                bool mouseMoved = currentMousePosition != lastMousePosition;
+                if (mouseMoved)
                 {
-                    Console.WriteLine("Fare sıcak bölgeye girdi. Gösteriliyor...");
-                    mouseIsInHotZone = true;
-                    StopAndDisposeTimer(ref hideDelayTimer);
+                    lastMouseMoveTime = DateTime.Now;
+                    lastMousePosition = currentMousePosition;
+                }
+
+                // Farenin anlık konumunu al
+                bool currentlyInHotZone = overlayWindow.HotZone.Contains(currentMousePosition) && appSettings.EnableMouseHoverShow;
+                isMouseOverHotZone = currentlyInHotZone; // Anlık durumu güncelle (opsiyonel, loglama için vs.)
+
+                // Kararlılık kontrolü
+                if (currentlyInHotZone == isMouseOverHotZoneStable)
+                {
+                    hotZoneConsecutiveTicks = 0; // Durum stabil, sayacı sıfırla
+                }
+                else
+                {
+                    hotZoneConsecutiveTicks++; // Durum farklı, sayacı artır
+                    // Kararlılık eşiğine ulaşıldı mı?
+                    if (hotZoneConsecutiveTicks >= HOT_ZONE_STABILITY_THRESHOLD)
+                    {
+                        isMouseOverHotZoneStable = currentlyInHotZone; // Kararlı durumu güncelle
+                        hotZoneConsecutiveTicks = 0; // Sayacı sıfırla
+                        Console.WriteLine($"Stabil Sıcak Bölge Durumu Değişti: {isMouseOverHotZoneStable}");
+                        SetUpdateInterval(); // Interval'i GÜNCELLE
+                    }
+                }
+
+                // FadeIn mantığı - Kararlı durumu kullan
+                if ((isMouseOverHotZoneStable || !autoHideEnabled) && (!overlayWindow.IsVisible || (overlayWindow.IsFading && !overlayWindow.IsFadingIn)))
+                {
+                    // Sadece fare gerçekten hareket ettiyse VEYA otomatik gizleme kapalıysa FadeIn yap
+                    // (Fare hareket etmese bile durum değişmiş olabilir, örn. Ayarlardan AutoHide kapatıldı)
+                    if (mouseMoved || !autoHideEnabled)
+                    {
+                        Console.WriteLine("Fare hareketi/durumu (stabil) ile FadeIn tetikleniyor.");
+                        overlayWindow.FadeIn();
+                    }
+                }
+
+                // Fare hareket etmese de gizleme mantığını kontrol et - Kararlı durumu kullan
+                if (autoHideEnabled) CheckAutoHideLogic(isMouseOverHotZoneStable);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"MouseCheckTimer_Tick Hata: {ex.Message}");
+            }
+        }
+
+        private static void CheckAutoHideLogic(bool stableMouseOverHotZone)
+        {
+            if (overlayWindow == null || !overlayWindow.IsHandleCreated || !autoHideEnabled)
+                return;
+            try
+            {
+                // Kararlı durumu kullan
+                bool shouldHide = !stableMouseOverHotZone && (DateTime.Now - lastMouseMoveTime).TotalMilliseconds > appSettings.HideDelayMs;
+                if (shouldHide && overlayWindow.IsVisible && !overlayWindow.IsFading)
+                {
+                    Console.WriteLine("Otomatik gizleme için FadeOut tetikleniyor.");
+                    overlayWindow.FadeOut();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"CheckAutoHideLogic Hata: {ex.Message}");
+            }
+        }
+
+        private static void OnAutoHideChanged(object? sender, bool enabled)
+        {
+            autoHideEnabled = enabled;
+            Console.WriteLine($"Otomatik Gizleme Değişti: {enabled}");
+            // systemTrayHandler?.SetAutoHideState(enabled); // Menüden geldiği için zaten ayarlı
+
+            if (!autoHideEnabled)
+            {
+                if (overlayWindow != null && (!overlayWindow.IsVisible || overlayWindow.IsFading))
+                {
+                    Console.WriteLine("Otomatik gizleme kapatıldı, FadeIn tetikleniyor.");
                     overlayWindow.FadeIn();
-                    SetUpdateInterval(SHORT_INTERVAL);
                 }
-                else if (!currentlyInHotZone && mouseIsInHotZone)
+                // isMouseOverHotZone = false; // Bunu yapmaya gerek yok, stabil durumu kullanıyoruz
+                SetUpdateInterval(); // Durum değiştiği için intervali güncelle
+            }
+            else
+            {
+                SetUpdateInterval(); // Durum değiştiği için intervali güncelle
+                                     // Kararlı durumu kullanarak CheckAutoHideLogic çağır
+                CheckAutoHideLogic(isMouseOverHotZoneStable);
+            }
+        }
+
+        private static void OnSettingsRequested(object? sender, EventArgs e)
+        {
+            Console.WriteLine("Ayarlar formu açılıyor...");
+            StopTimers();
+            using (SettingsForm settingsForm = new SettingsForm(appSettings))
+            {
+                DialogResult result = settingsForm.ShowDialog();
+                if (result == DialogResult.OK)
                 {
-                    Console.WriteLine("Fare sıcak bölgeden çıktı. Hide timer başlatılıyor...");
-                    mouseIsInHotZone = false;
-                    StartHideDelayTimer(); // Fare ayrıldı, gecikmeli gizle
+                    // settingsForm, appSettings nesnesini doğrudan güncelledi.
+                    Console.WriteLine("Ayarlar kaydedildi.");
+                    ApplySettings();
+                    // autoHideEnabled durumunu ayarlardan gelen değere göre güncelle
+                    autoHideEnabled = appSettings.EnableMouseHoverShow;
+                    systemTrayHandler?.SetAutoHideState(autoHideEnabled); // Tepsi menüsündeki işareti de güncelle
+                    // TODO: Ayarları dosyaya kaydetme işlemi burada çağrılabilir.
+                    // appSettings.Save();
+                }
+                else
+                {
+                    Console.WriteLine("Ayarlar iptal edildi.");
                 }
             }
-            catch (Exception ex) { Console.WriteLine($"Mouse check hatası: {ex.Message}"); }
+            StartTimers();
+            Console.WriteLine("Ayarlar formu kapatıldı.");
         }
 
-        // Gizleme koşullarını kontrol edip timer'ı başlatan yardımcı metot
-        private static void CheckAndStartHideTimer()
+        private static void ApplySettings()
         {
-            if (autoHideEnabled && overlayWindow != null && overlayWindow.IsVisible &&
-                !isHighTemperature && !mouseIsInHotZone && !overlayWindow.IsFading)
-            {
-                Console.WriteLine("Koşullar uygun, Hide Delay Timer başlatılıyor.");
-                StartHideDelayTimer();
-            }
-            else
-            {
-                Console.WriteLine("Gizleme koşulları uygun değil, timer başlatılmadı.");
-            }
+            overlayWindow?.ApplyColorSettings(
+                appSettings.TempThreshold1, appSettings.ColorLowTemp,
+                appSettings.TempThreshold2, appSettings.ColorMidTemp,
+                appSettings.ColorHighTemp);
+            SetUpdateInterval();
+            Console.WriteLine("Yeni ayarlar uygulandı.");
         }
 
-        // Gecikmeli Gizleme Timer'ını Başlatma
-        private static void StartHideDelayTimer()
+        private static void OnExitRequested(object? sender, EventArgs e)
         {
-            StopAndDisposeTimer(ref hideDelayTimer); // Öncekini durdur
-            hideDelayTimer = new System.Windows.Forms.Timer { Interval = HIDE_DELAY };
-            hideDelayTimer.Tick += OnHideDelayTimerTick;
-            Console.WriteLine("Hide Delay Timer başlatıldı.");
-            hideDelayTimer.Start();
+            Console.WriteLine("Çıkış isteği alındı.");
+            Application.Exit();
         }
 
-        // Gecikme Timer'ı Tick Olayı
-        private static void OnHideDelayTimerTick(object? sender, EventArgs e)
+        private static void Cleanup(Mutex? mutex = null)
         {
-            StopAndDisposeTimer(ref hideDelayTimer);
-            Console.WriteLine("Hide Delay Timer Tick - FadeOut çağrılıyor.");
-            // Tekrar kontrol et (durum değişmiş olabilir)
-            if (autoHideEnabled && overlayWindow != null && overlayWindow.IsVisible &&
-               !isHighTemperature && !mouseIsInHotZone && !overlayWindow.IsFading)
-            {
-                overlayWindow.FadeOut();
-            }
-            else
-            {
-                Console.WriteLine(" -> FadeOut engellendi (koşullar değişti).");
-            }
-        }
-
-        // Timer Durdurma ve Dispose Etme Yardımcısı
-        private static void StopAndDisposeTimer(ref System.Windows.Forms.Timer? timerInstance)
-        {
-            if (timerInstance != null)
-            {
-                timerInstance.Stop();
-                timerInstance.Dispose();
-                timerInstance = null;
-            }
-        }
-
-        // Güncelleme Aralığını Ayarlama
-        private static void SetUpdateInterval(int newInterval)
-        {
-            if (updateTimer != null && updateTimer.Interval != newInterval)
-            {
-                Console.WriteLine($" -> Update interval ayarlanıyor: {newInterval}ms");
-                updateTimer.Interval = newInterval;
-            }
-        }
-
-        // Uygulamayı Temizleme ve Kapatma
-        private static void CleanupAndExit()
-        {
-            Console.WriteLine("CleanupAndExit çağrıldı.");
-            try
-            {
-                StopAndDisposeTimer(ref updateTimer);
-                StopAndDisposeTimer(ref mouseCheckTimer);
-                StopAndDisposeTimer(ref hideDelayTimer);
-
-                overlayWindow?.Dispose(); // Bu, içindeki fade timer'ı da durdurmalı
-                systemTrayHandler?.Dispose();
-                hardwareMonitor?.Dispose();
-
-                Console.WriteLine("Tüm kaynaklar serbest bırakıldı.");
-            }
-            catch (Exception ex) { Console.WriteLine($"Çıkış sırasında hata: {ex.Message}"); }
-            finally
-            {
-                Console.WriteLine("Application.Exit() çağrılıyor.");
-                Application.Exit();
-                FreeConsole();
-            }
+            Console.WriteLine("Temizlik yapılıyor...");
+            StopTimers();
+            updateTimer?.Dispose();
+            mouseCheckTimer?.Dispose();
+            systemTrayHandler?.Dispose();
+            overlayWindow?.Dispose();
+            hardwareMonitor?.Dispose(); // Doğru metot adı
+            mutex?.ReleaseMutex();
+            mutex?.Dispose();
         }
 
         // Konsol API'leri
@@ -306,3 +351,4 @@ namespace Thermal
         [DllImport("kernel32.dll", SetLastError = true)][return: MarshalAs(UnmanagedType.Bool)] static extern bool FreeConsole();
     }
 }
+

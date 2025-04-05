@@ -30,6 +30,13 @@ namespace Thermal
         private bool isVisible = true;
         private Rectangle hotZone = Rectangle.Empty;
 
+        // Renk Ayarları (Varsayılan)
+        private float tempThreshold1 = 50.0f;
+        private Color colorLowTemp = Color.LimeGreen;
+        private float tempThreshold2 = 70.0f;
+        private Color colorMidTemp = Color.Yellow;
+        private Color colorHighTemp = Color.Red;
+
         private const double FADE_STEP = 0.10;
         private const int FADE_INTERVAL = 50;
 
@@ -37,15 +44,16 @@ namespace Thermal
 
         public bool IsVisible => isVisible;
         public bool IsFading => isFading;
+        public bool IsFadingIn => isFadingIn;
         public Rectangle HotZone => hotZone;
         public bool IsHandleCreated => overlayForm.IsHandleCreated;
         public IntPtr Handle => overlayForm.Handle;
 
         public OverlayWindow()
         {
-            cpuLabel = new Label { /* ... */ AutoSize = true, BackColor = Color.Transparent, ForeColor = Color.White, Font = new Font("Arial", 10, FontStyle.Bold), Text = "C: --°C", Padding = new Padding(3, 5, 3, 5), Margin = new Padding(0), TextAlign = ContentAlignment.MiddleCenter, Visible = false };
-            gpuLabel = new Label { /* ... */ AutoSize = true, BackColor = Color.Transparent, ForeColor = Color.White, Font = new Font("Arial", 10, FontStyle.Bold), Text = "G: --°C", Padding = new Padding(3, 5, 5, 5), Margin = new Padding(0), TextAlign = ContentAlignment.MiddleCenter, Visible = false };
-            flowPanel = new FlowLayoutPanel { /* ... */ AutoSize = true, FlowDirection = FlowDirection.LeftToRight, BackColor = Color.Transparent, Margin = new Padding(0), Padding = new Padding(0) };
+            cpuLabel = new Label { AutoSize = true, BackColor = Color.Transparent, ForeColor = Color.White, Font = new Font("Arial", 10, FontStyle.Bold), Text = "C: --°C", Padding = new Padding(3, 5, 3, 5), Margin = new Padding(0), TextAlign = ContentAlignment.MiddleCenter, Visible = false };
+            gpuLabel = new Label { AutoSize = true, BackColor = Color.Transparent, ForeColor = Color.White, Font = new Font("Arial", 10, FontStyle.Bold), Text = "G: --°C", Padding = new Padding(3, 5, 5, 5), Margin = new Padding(0), TextAlign = ContentAlignment.MiddleCenter, Visible = false };
+            flowPanel = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, BackColor = Color.Transparent, Margin = new Padding(0), Padding = new Padding(0) };
             flowPanel.Controls.Add(cpuLabel);
             flowPanel.Controls.Add(gpuLabel);
 
@@ -94,6 +102,18 @@ namespace Thermal
             }
         }
 
+        public void ApplyColorSettings(float threshold1, Color lowColor, float threshold2, Color midColor, Color highColor)
+        {
+            tempThreshold1 = threshold1;
+            colorLowTemp = lowColor;
+            tempThreshold2 = threshold2;
+            colorMidTemp = midColor;
+            colorHighTemp = highColor;
+            Console.WriteLine("OverlayWindow: Renk ayarları uygulandı.");
+            // Mevcut labelların rengini hemen güncellemek için UpdateLabel'ı tekrar çağırmak gerekebilir,
+            // ancak bir sonraki tick'te zaten güncellenecek.
+        }
+
         public void UpdateLabel(string labelType, float temperature)
         {
             Label? targetLabel = labelType.Equals("CPU", StringComparison.OrdinalIgnoreCase) ? cpuLabel : gpuLabel;
@@ -108,9 +128,9 @@ namespace Thermal
             targetLabel.Visible = true;
             targetLabel.Text = $"{(labelType == "CPU" ? "C" : "G")}: {temperature:F0}°C";
 
-            if (temperature < 50) targetLabel.ForeColor = Color.LimeGreen;
-            else if (temperature < 70) targetLabel.ForeColor = Color.Yellow;
-            else targetLabel.ForeColor = Color.Red;
+            if (temperature < tempThreshold1) targetLabel.ForeColor = colorLowTemp;
+            else if (temperature < tempThreshold2) targetLabel.ForeColor = colorMidTemp;
+            else targetLabel.ForeColor = colorHighTemp;
         }
 
         public void PositionOverlay()
