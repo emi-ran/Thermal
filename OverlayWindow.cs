@@ -48,6 +48,7 @@ namespace Thermal
         public Rectangle HotZone => hotZone;
         public bool IsHandleCreated => overlayForm.IsHandleCreated;
         public IntPtr Handle => overlayForm.Handle;
+        public double CurrentOpacity => overlayForm.IsDisposed ? 0 : overlayForm.Opacity;
 
         public OverlayWindow()
         {
@@ -166,10 +167,12 @@ namespace Thermal
         public void FadeIn()
         {
             if (overlayForm.IsDisposed) return;
-            if (isFading && isFadingIn) return;
-            if (!isFading && isVisible) return;
+            if ((!isFading && isVisible && overlayForm.Opacity >= 1.0) || (isFading && isFadingIn))
+            {
+                return;
+            }
 
-            Console.WriteLine("OverlayWindow: Fade In Tetiklendi.");
+            Console.WriteLine("OverlayWindow: Sıcak bölgeye girildi/Gösteriliyor -> FadeIn Başlatılıyor.");
             StopAndDisposeFadeTimer();
             fadeTimer = new System.Windows.Forms.Timer { Interval = FADE_INTERVAL };
             fadeTimer.Tick += FadeTimer_Tick;
@@ -180,7 +183,7 @@ namespace Thermal
             if (!overlayForm.Visible || overlayForm.Opacity < 1.0)
             {
                 overlayForm.Opacity = Math.Max(0.0, overlayForm.Opacity);
-                Show(); // Formu göster (Hide ile gizlenmiş olabilir)
+                Show();
                 PositionOverlay();
                 SetTopMost();
             }

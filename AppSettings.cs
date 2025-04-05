@@ -21,7 +21,7 @@ namespace Thermal
         public Color ColorHighTemp { get; set; } = Color.Red; // Threshold2 üstü Kırmızı
 
         // Otomatik Gizleme Davranışları
-        public bool EnableMouseHoverShow { get; set; } = false; // Fare üzerine gelince göster KAPALI (varsayılan)
+        public bool EnableMouseHoverShow { get; set; } = true; // Fare üzerine gelince göster AÇIK (varsayılan)
         public int HideDelayMs { get; set; } = 5000; // Gizleme gecikmesi (ms)
 
         // TODO: Ayarları dosyaya kaydetme/yükleme eklenebilir.
