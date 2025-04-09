@@ -51,6 +51,7 @@ namespace Thermal.Presentation
             this.groupBox3 = new System.Windows.Forms.GroupBox();
             this.numHideDelay = new System.Windows.Forms.NumericUpDown();
             this.label7 = new System.Windows.Forms.Label();
+            this.chkStartWithWindows = new System.Windows.Forms.CheckBox();
             ((System.ComponentModel.ISupportInitialize)(this.numShortInterval)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numLongInterval)).BeginInit();
             this.groupBox1.SuspendLayout();
@@ -279,19 +280,32 @@ namespace Thermal.Presentation
             this.chkEnableMouseHover.AutoSize = true;
             this.chkEnableMouseHover.Checked = true;
             this.chkEnableMouseHover.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.chkEnableMouseHover.Location = new System.Drawing.Point(18, 52);
+            this.chkEnableMouseHover.Location = new System.Drawing.Point(18, 51);
             this.chkEnableMouseHover.Name = "chkEnableMouseHover";
-            this.chkEnableMouseHover.Size = new System.Drawing.Size(180, 17);
+            this.chkEnableMouseHover.Size = new System.Drawing.Size(176, 17);
             this.chkEnableMouseHover.TabIndex = 2;
             this.chkEnableMouseHover.Text = "Fare Üzerine Gelince Göster/Gizle";
+            this.toolTipSettings.SetToolTip(this.chkEnableMouseHover, "'Otomatik Gizle' aktifken, fare göstergenin üzerine geldiğinde otomatik olarak göst"
+        + "erilmesini sağlar.");
             this.chkEnableMouseHover.UseVisualStyleBackColor = true;
+            // 
+            // chkStartWithWindows
+            // 
+            this.chkStartWithWindows.AutoSize = true;
+            this.chkStartWithWindows.Location = new System.Drawing.Point(18, 295);
+            this.chkStartWithWindows.Name = "chkStartWithWindows";
+            this.chkStartWithWindows.Size = new System.Drawing.Size(117, 17);
+            this.chkStartWithWindows.TabIndex = 3;
+            this.chkStartWithWindows.Text = "Windows ile Başlat";
+            this.toolTipSettings.SetToolTip(this.chkStartWithWindows, "İşaretlendiğinde, uygulama Windows başladığında otomatik olarak çalışır.");
+            this.chkStartWithWindows.UseVisualStyleBackColor = true;
             // 
             // btnSave
             // 
-            this.btnSave.Location = new System.Drawing.Point(116, 313);
+            this.btnSave.Location = new System.Drawing.Point(116, 320);
             this.btnSave.Name = "btnSave";
             this.btnSave.Size = new System.Drawing.Size(75, 23);
-            this.btnSave.TabIndex = 3;
+            this.btnSave.TabIndex = 4;
             this.btnSave.Text = "Kaydet";
             this.btnSave.UseVisualStyleBackColor = true;
             this.btnSave.Click += new System.EventHandler(this.btnSave_Click);
@@ -299,10 +313,10 @@ namespace Thermal.Presentation
             // btnCancel
             // 
             this.btnCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.btnCancel.Location = new System.Drawing.Point(197, 313);
+            this.btnCancel.Location = new System.Drawing.Point(197, 320);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(75, 23);
-            this.btnCancel.TabIndex = 4;
+            this.btnCancel.TabIndex = 5;
             this.btnCancel.Text = "İptal";
             this.btnCancel.UseVisualStyleBackColor = true;
             this.btnCancel.Click += new System.EventHandler(this.btnCancel_Click);
@@ -312,7 +326,7 @@ namespace Thermal.Presentation
             this.groupBox3.Controls.Add(this.numHideDelay);
             this.groupBox3.Controls.Add(this.label7);
             this.groupBox3.Controls.Add(this.chkEnableMouseHover);
-            this.groupBox3.Location = new System.Drawing.Point(12, 224);
+            this.groupBox3.Location = new System.Drawing.Point(12, 204);
             this.groupBox3.Name = "groupBox3";
             this.groupBox3.Size = new System.Drawing.Size(260, 83);
             this.groupBox3.TabIndex = 2;
@@ -356,7 +370,8 @@ namespace Thermal.Presentation
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.btnCancel;
-            this.ClientSize = new System.Drawing.Size(284, 348);
+            this.ClientSize = new System.Drawing.Size(284, 360);
+            this.Controls.Add(this.chkStartWithWindows);
             this.Controls.Add(this.groupBox3);
             this.Controls.Add(this.btnCancel);
             this.Controls.Add(this.btnSave);
@@ -383,6 +398,7 @@ namespace Thermal.Presentation
             ((System.ComponentModel.ISupportInitialize)(this.numHideDelay)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
+            this.groupBox3.Controls.Remove(this.chkStartWithWindows);
         }
 
         #endregion
@@ -409,5 +425,6 @@ namespace Thermal.Presentation
         private System.Windows.Forms.GroupBox groupBox3;
         private System.Windows.Forms.NumericUpDown numHideDelay;
         private System.Windows.Forms.Label label7;
+        private System.Windows.Forms.CheckBox chkStartWithWindows;
     }
 }

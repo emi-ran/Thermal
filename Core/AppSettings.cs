@@ -23,6 +23,7 @@ namespace Thermal.Core
         // Otomatik Gizleme Davranışları
         public bool EnableMouseHoverShow { get; set; } = true; // Fare üzerine gelince göster AÇIK (varsayılan)
         public int HideDelayMs { get; set; } = 5000; // Gizleme gecikmesi (ms)
+        public bool StartWithWindows { get; set; } = false; // Windows ile başlama ayarı
 
         // TODO: Ayarları dosyaya kaydetme/yükleme eklenebilir.
         // public void Save() { ... }

@@ -8,10 +8,13 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
+    <!-- Uygulama İkonu -->
+    <ApplicationIcon>Resources\Thermal.ico</ApplicationIcon>
+
     <!-- Sürüm Bilgileri -->
-    <Version>0.2.0</Version>
-    <AssemblyVersion>0.2.0.0</AssemblyVersion>
-    <FileVersion>0.2.0.0</FileVersion>
+    <Version>0.3.0</Version>
+    <AssemblyVersion>0.3.0.0</AssemblyVersion>
+    <FileVersion>0.3.0.0</FileVersion>
 
     <!-- Tek Dosya Yayınlama Ayarları -->
     <PublishSingleFile>true</PublishSingleFile>
@@ -27,6 +30,11 @@
 
   <ItemGroup>
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.3" />
+  </ItemGroup>
+
+  <!-- İkon Dosyasını Gömme -->
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Thermal.ico" />
   </ItemGroup>
 
 </Project>

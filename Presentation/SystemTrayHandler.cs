@@ -1,6 +1,8 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Reflection; // Assembly için
+using System.IO; // Stream için
 
 namespace Thermal.Presentation
 {
@@ -40,7 +42,31 @@ namespace Thermal.Presentation
         private void SetupIcon()
         {
             notifyIcon.Text = "Thermal Monitor";
-            try { notifyIcon.Icon = SystemIcons.Application; } catch { }
+            try
+            {
+                // Gömülü kaynaktan ikonu yükle
+                Assembly assembly = Assembly.GetExecutingAssembly();
+                // Kaynak adı: <Default Namespace>.<Folder Name>.<File Name>
+                // Bizim durumumuzda muhtemelen "Thermal.Resources.Thermal.ico"
+                string resourceName = "Thermal.Resources.Thermal.ico"; 
+                using (Stream? stream = assembly.GetManifestResourceStream(resourceName))
+                {
+                    if (stream != null)
+                    {
+                        notifyIcon.Icon = new Icon(stream);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"SystemTrayHandler Hata: İkon kaynağı bulunamadı: {resourceName}");
+                        notifyIcon.Icon = SystemIcons.Application; // Fallback
+                    }
+                }
+            }
+            catch (Exception ex)
+            { 
+                Console.WriteLine($"SystemTrayHandler Hata: İkon yüklenemedi: {ex.Message}");
+                notifyIcon.Icon = SystemIcons.Application; // Fallback
+            }
             notifyIcon.Visible = true;
             Console.WriteLine("SystemTrayHandler: İkon gösterildi.");
         }

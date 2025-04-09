@@ -33,6 +33,7 @@ namespace Thermal.Presentation
             btnColorHigh.BackColor = currentSettings.ColorHighTemp;
 
             chkEnableMouseHover.Checked = currentSettings.EnableMouseHoverShow;
+            chkStartWithWindows.Checked = currentSettings.StartWithWindows;
         }
 
         private void SetupToolTips()
@@ -52,6 +53,7 @@ namespace Thermal.Presentation
             toolTip.SetToolTip(btnColorMid, "Orta sıcaklıklar için kullanılacak rengi seçin.");
             toolTip.SetToolTip(btnColorHigh, "Eşik 2 üzerindeki sıcaklıklar için kullanılacak rengi seçin.");
             toolTip.SetToolTip(chkEnableMouseHover, "'Otomatik Gizle' aktifken, fare göstergenin üzerine geldiğinde otomatik olarak gösterilmesini sağlar.");
+            toolTip.SetToolTip(chkStartWithWindows, "İşaretlendiğinde, uygulama Windows başladığında otomatik olarak çalışır.");
         }
 
         private void btnColor_Click(object sender, EventArgs e)
@@ -92,6 +94,7 @@ namespace Thermal.Presentation
             currentSettings.ColorHighTemp = btnColorHigh.BackColor;
 
             currentSettings.EnableMouseHoverShow = chkEnableMouseHover.Checked;
+            currentSettings.StartWithWindows = chkStartWithWindows.Checked;
 
             this.DialogResult = DialogResult.OK;
             this.Close();

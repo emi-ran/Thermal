@@ -3,6 +3,7 @@ using System;
 using System.Drawing;
 using System.Globalization; // Sayı formatları için
 using Thermal.Core; // AppSettings için using eklendi
+using System.Windows.Forms; // Application.ExecutablePath için
 
 namespace Thermal.Persistence // Namespace güncellendi
 {
@@ -13,6 +14,10 @@ namespace Thermal.Persistence // Namespace güncellendi
     {
         // Ayarların kaydedileceği anahtar yolu (CurrentUser altında)
         private const string RegistryPath = @"Software\ThermalApp";
+        // Başlangıç anahtar yolu
+        private const string StartupRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        // Kayıt defterindeki uygulama adı (Başlangıç için)
+        private const string AppName = "ThermalWatcher";
 
         /// <summary>
         /// Verilen AppSettings nesnesini Kayıt Defteri'ne kaydeder.
@@ -47,6 +52,7 @@ namespace Thermal.Persistence // Namespace güncellendi
 
                     // Boolean değeri integer olarak kaydet (1=true, 0=false)
                     key.SetValue("EnableMouseHoverShow", settings.EnableMouseHoverShow ? 1 : 0, RegistryValueKind.DWord);
+                    key.SetValue("StartWithWindows", settings.StartWithWindows ? 1 : 0, RegistryValueKind.DWord);
 
                     Console.WriteLine("RegistryHandler: Ayarlar başarıyla kaydedildi.");
                 }
@@ -104,8 +110,9 @@ namespace Thermal.Persistence // Namespace güncellendi
                     settings.ColorMidTemp = Color.FromArgb(Convert.ToInt32(key.GetValue("ColorMidTemp", settings.ColorMidTemp.ToArgb())));
                     settings.ColorHighTemp = Color.FromArgb(Convert.ToInt32(key.GetValue("ColorHighTemp", settings.ColorHighTemp.ToArgb())));
 
-                    // Boolean değeri integer'dan çevir
+                    // Boolean değerleri integer'dan çevir
                     settings.EnableMouseHoverShow = Convert.ToInt32(key.GetValue("EnableMouseHoverShow", settings.EnableMouseHoverShow ? 1 : 0)) == 1;
+                    settings.StartWithWindows = Convert.ToInt32(key.GetValue("StartWithWindows", settings.StartWithWindows ? 1 : 0)) == 1;
 
                     Console.WriteLine("RegistryHandler: Ayarlar başarıyla yüklendi.");
                 }
@@ -118,6 +125,53 @@ namespace Thermal.Persistence // Namespace güncellendi
             }
 
             return settings;
+        }
+
+        /// <summary>
+        /// Uygulamanın Windows başlangıcında otomatik olarak çalışmasını ayarlar.
+        /// </summary>
+        /// <param name="enable">True ise başlangıca ekle, False ise kaldır.</param>
+        public static void SetStartup(bool enable)
+        {
+            try
+            {
+                using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(StartupRegistryPath, true))
+                {
+                    if (key == null)
+                    {
+                        Console.WriteLine($"RegistryHandler Hata: Başlangıç anahtarı açılamadı: {StartupRegistryPath}");
+                        return;
+                    }
+
+                    string executablePath = Application.ExecutablePath;
+
+                    if (enable)
+                    {
+                        // Uygulama yolunu tırnak içine alarak kaydet (boşluklu yollar için önemli)
+                        key.SetValue(AppName, $"\"{executablePath}\"", RegistryValueKind.String);
+                        Console.WriteLine($"RegistryHandler: Uygulama başlangıca eklendi: {AppName}");
+                    }
+                    else
+                    {
+                        // Anahtar varsa kaldır
+                        if (key.GetValue(AppName) != null)
+                        {
+                            key.DeleteValue(AppName, false); // false: Değer yoksa hata verme
+                            Console.WriteLine($"RegistryHandler: Uygulama başlangıçtan kaldırıldı: {AppName}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"RegistryHandler: Uygulama zaten başlangıçta değildi: {AppName}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"RegistryHandler Hata: Başlangıç ayarı değiştirilirken hata oluştu: {ex.Message}");
+                MessageBox.Show($"Windows başlangıç ayarı değiştirilirken bir hata oluştu:\n{ex.Message}\n\nLütfen uygulamayı yönetici olarak çalıştırmayı deneyin.",
+                                "Başlangıç Ayarı Hatası", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
     }
 }

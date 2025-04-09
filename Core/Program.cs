@@ -351,6 +351,8 @@ namespace Thermal.Core
                     ApplySettings();
                     // Güncellenen Ayarları Kayıt Defteri'ne Kaydet
                     RegistryHandler.SaveSettings(appSettings);
+                    // Başlangıç Durumunu Güncelle
+                    RegistryHandler.SetStartup(appSettings.StartWithWindows);
                 }
                 else
                 { Console.WriteLine("Ayarlar iptal edildi."); }
