@@ -50,9 +50,10 @@ namespace Thermal.Persistence // Namespace güncellendi
                     key.SetValue("ColorMidTemp", settings.ColorMidTemp.ToArgb(), RegistryValueKind.DWord);
                     key.SetValue("ColorHighTemp", settings.ColorHighTemp.ToArgb(), RegistryValueKind.DWord);
 
-                    // Boolean değeri integer olarak kaydet (1=true, 0=false)
+                    // Boolean değerleri integer olarak kaydet (1=true, 0=false)
                     key.SetValue("EnableMouseHoverShow", settings.EnableMouseHoverShow ? 1 : 0, RegistryValueKind.DWord);
                     key.SetValue("StartWithWindows", settings.StartWithWindows ? 1 : 0, RegistryValueKind.DWord);
+                    key.SetValue("AutoHideEnabledPreference", settings.AutoHideEnabledPreference ? 1 : 0, RegistryValueKind.DWord);
 
                     Console.WriteLine("RegistryHandler: Ayarlar başarıyla kaydedildi.");
                 }
@@ -113,6 +114,7 @@ namespace Thermal.Persistence // Namespace güncellendi
                     // Boolean değerleri integer'dan çevir
                     settings.EnableMouseHoverShow = Convert.ToInt32(key.GetValue("EnableMouseHoverShow", settings.EnableMouseHoverShow ? 1 : 0)) == 1;
                     settings.StartWithWindows = Convert.ToInt32(key.GetValue("StartWithWindows", settings.StartWithWindows ? 1 : 0)) == 1;
+                    settings.AutoHideEnabledPreference = Convert.ToInt32(key.GetValue("AutoHideEnabledPreference", settings.AutoHideEnabledPreference ? 1 : 0)) == 1;
 
                     Console.WriteLine("RegistryHandler: Ayarlar başarıyla yüklendi.");
                 }

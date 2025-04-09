@@ -14,11 +14,12 @@ A lightweight Windows application designed to monitor your CPU and GPU temperatu
     *   **Update Intervals:** Set different refresh rates for when the overlay is visible versus hidden (Auto-Hide mode).
     *   **Temperature Thresholds:** Define temperature ranges (e.g., <50°C, 50-70°C, >70°C).
     *   **Color Coding:** Assign distinct colors (Low, Mid, High) to temperature ranges for easy visual feedback.
-    *   **Auto-Hide:** Automatically hide the overlay when the mouse is not near it.
+    *   **Auto-Hide:** Automatically hide the overlay when the mouse is not near it. The toggle state is saved.
     *   **Hover to Show:** Optionally show the overlay automatically when the mouse enters the overlay's "hot zone" (only when Auto-Hide is enabled).
     *   **Hide Delay:** Configure how long to wait before hiding the overlay after the mouse leaves the hot zone.
+    *   **Start with Windows:** Configure the application to launch automatically when Windows starts.
 *   **High-Temperature Override:** Automatically keeps the overlay visible and updates frequently if temperatures exceed the 'High' threshold, regardless of Auto-Hide settings.
-*   **Settings Persistence:** Saves your preferences to the Windows Registry (`HKEY_CURRENT_USER\\Software\\ThermalApp`) so they are remembered across application restarts.
+*   **Settings Persistence:** Saves your preferences (including update intervals, colors, thresholds, auto-hide state, and start with windows setting) to the Windows Registry (`HKEY_CURRENT_USER\Software\ThermalApp`) so they are remembered across application restarts.
 
 ## Installation & Usage
 
@@ -26,7 +27,7 @@ A lightweight Windows application designed to monitor your CPU and GPU temperatu
 2.  **Run:** Execute `Thermal.exe`. It's recommended to run it **as Administrator** to ensure it can access hardware sensor data correctly.
 3.  **System Tray:** The application icon will appear in your system tray. Right-click it to:
     *   **Settings...:** Open the settings window to customize behavior and appearance.
-    *   **Auto-Hide:** Toggle the auto-hide feature on or off.
+    *   **Auto-Hide:** Toggle the auto-hide feature on or off (state is saved).
     *   **Exit:** Close the application.
 
 ## Dependencies

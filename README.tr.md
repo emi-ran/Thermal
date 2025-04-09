@@ -16,11 +16,12 @@ CPU ve GPU sıcaklıklarınızı gerçek zamanlı olarak izlemek ve bunları min
     *   **Güncelleme Aralıkları:** Arayüz görünürken ve gizliyken (Otomatik Gizleme modu) farklı yenileme hızları ayarlayın.
     *   **Sıcaklık Eşikleri:** Sıcaklık aralıkları tanımlayın (örn. <50°C, 50-70°C, >70°C).
     *   **Renk Kodlaması:** Kolay görsel geri bildirim için sıcaklık aralıklarına farklı renkler (Düşük, Orta, Yüksek) atayın.
-    *   **Otomatik Gizleme:** Fare yakınında olmadığında arayüzü otomatik olarak gizleyin.
+    *   **Otomatik Gizleme:** Fare yakınında olmadığında arayüzü otomatik olarak gizleyin. Açık/kapalı durumu kaydedilir.
     *   **Fareyle Gösterme:** İsteğe bağlı olarak, fare arayüzün "sıcak bölgesine" girdiğinde otomatik olarak gösterin (sadece Otomatik Gizleme etkinken çalışır).
     *   **Gizleme Gecikmesi:** Fare sıcak bölgeden ayrıldıktan sonra arayüzün gizlenmesi için ne kadar bekleneceğini yapılandırın.
+    *   **Windows ile Başlat:** Uygulamanın Windows başladığında otomatik olarak başlatılmasını yapılandırın.
 *   **Yüksek Sıcaklık Önceliği:** Sıcaklıklar 'Yüksek' eşiğini aşarsa, Otomatik Gizleme ayarlarından bağımsız olarak arayüzü otomatik olarak görünür tutar ve sık sık günceller.
-*   **Ayarların Kaydedilmesi:** Tercihlerinizi Windows Kayıt Defteri'ne (`HKEY_CURRENT_USER\\Software\\ThermalApp`) kaydeder, böylece uygulama yeniden başlatıldığında ayarlarınız korunur.
+*   **Ayarların Kaydedilmesi:** Tercihlerinizi (güncelleme aralıkları, renkler, eşikler, otomatik gizleme durumu ve windows ile başlatma ayarı dahil) Windows Kayıt Defteri'ne (`HKEY_CURRENT_USER\Software\ThermalApp`) kaydeder, böylece uygulama yeniden başlatıldığında ayarlarınız korunur.
 
 ## Kurulum ve Kullanım
 
@@ -28,7 +29,7 @@ CPU ve GPU sıcaklıklarınızı gerçek zamanlı olarak izlemek ve bunları min
 2.  **Çalıştırma:** `Thermal.exe` dosyasını çalıştırın. Donanım sensör verilerine doğru şekilde erişebildiğinden emin olmak için **Yönetici olarak çalıştırılması** önerilir.
 3.  **Sistem Tepsisi:** Uygulama simgesi sistem tepsinizde görünecektir. Sağ tıklayarak şunları yapabilirsiniz:
     *   **Ayarlar...:** Davranışı ve görünümü özelleştirmek için ayarlar penceresini açın.
-    *   **Otomatik Gizle:** Otomatik gizleme özelliğini açıp kapatın.
+    *   **Otomatik Gizle:** Otomatik gizleme özelliğini açıp kapatın (durum kaydedilir).
     *   **Çıkış:** Uygulamayı kapatın.
 
 ## Bağımlılıklar
