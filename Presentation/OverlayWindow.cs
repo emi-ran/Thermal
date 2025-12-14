@@ -285,6 +285,7 @@ namespace Thermal.Presentation
     {
         private const int WS_EX_LAYERED = 0x80000;
         private const int WS_EX_TRANSPARENT = 0x20;
+        private const int WS_EX_TOOLWINDOW = 0x80; // Taskbar'da görünmemesi için
 
         public TransparentClickThroughForm()
         {
@@ -296,7 +297,7 @@ namespace Thermal.Presentation
             get
             {
                 CreateParams cp = base.CreateParams;
-                cp.ExStyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT;
+                cp.ExStyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW;
                 return cp;
             }
         }
