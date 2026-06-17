@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Globalization; // Sayı formatları için
 using Thermal.Core; // AppSettings için using eklendi
 using System.Windows.Forms; // Application.ExecutablePath için
+using System.Diagnostics; // Process başlatma ve schtasks kontrolü için
 
 namespace Thermal.Persistence // Namespace güncellendi
 {
@@ -89,10 +90,10 @@ namespace Thermal.Persistence // Namespace güncellendi
 
                     Console.WriteLine("RegistryHandler: Ayarlar kayıt defterinden yükleniyor...");
 
-                    // Değerleri oku (varsayılan değerlerle birlikte GetValue kullanarak)
-                    settings.ShortUpdateIntervalMs = Convert.ToInt32(key.GetValue("ShortUpdateIntervalMs", settings.ShortUpdateIntervalMs));
-                    settings.LongUpdateIntervalMs = Convert.ToInt32(key.GetValue("LongUpdateIntervalMs", settings.LongUpdateIntervalMs));
-                    settings.HideDelayMs = Convert.ToInt32(key.GetValue("HideDelayMs", settings.HideDelayMs));
+                    // Değerleri oku ve sınırlandır (en az 1 saniye olması garanti edilir)
+                    settings.ShortUpdateIntervalMs = Math.Max(1000, Convert.ToInt32(key.GetValue("ShortUpdateIntervalMs", settings.ShortUpdateIntervalMs)));
+                    settings.LongUpdateIntervalMs = Math.Max(1000, Convert.ToInt32(key.GetValue("LongUpdateIntervalMs", settings.LongUpdateIntervalMs)));
+                    settings.HideDelayMs = Math.Max(0, Convert.ToInt32(key.GetValue("HideDelayMs", settings.HideDelayMs)));
 
                     // Float değerleri string'den parse et
                     if (float.TryParse(key.GetValue("TempThreshold1", settings.TempThreshold1.ToString(CultureInfo.InvariantCulture))?.ToString(),
@@ -131,48 +132,85 @@ namespace Thermal.Persistence // Namespace güncellendi
 
         /// <summary>
         /// Uygulamanın Windows başlangıcında otomatik olarak çalışmasını ayarlar.
+        /// Yönetici izinleri gerektiren uygulamalar için en yüksek yetkilerle Görev Zamanlayıcı görevi oluşturur.
         /// </summary>
         /// <param name="enable">True ise başlangıca ekle, False ise kaldır.</param>
         public static void SetStartup(bool enable)
         {
             try
             {
-                using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(StartupRegistryPath, true))
+                // Eski kayıt defteri Run girdisi kalmışsa temizle
+                CleanLegacyRegistryRun();
+
+                string executablePath = Application.ExecutablePath;
+
+                if (enable)
                 {
-                    if (key == null)
+                    // Görev Zamanlayıcısı'nda oturum açıldığında en yüksek yetkilerle çalışacak görev oluştur
+                    var startInfo = new ProcessStartInfo
                     {
-                        Console.WriteLine($"RegistryHandler Hata: Başlangıç anahtarı açılamadı: {StartupRegistryPath}");
-                        return;
-                    }
+                        FileName = "schtasks",
+                        Arguments = $"/create /tn \"{AppName}\" /tr \"\\\"{executablePath}\\\"\" /sc onlogon /rl highest /f",
+                        CreateNoWindow = true,
+                        UseShellExecute = false
+                    };
 
-                    string executablePath = Application.ExecutablePath;
-
-                    if (enable)
+                    using (Process? process = Process.Start(startInfo))
                     {
-                        // Uygulama yolunu tırnak içine alarak kaydet (boşluklu yollar için önemli)
-                        key.SetValue(AppName, $"\"{executablePath}\"", RegistryValueKind.String);
-                        Console.WriteLine($"RegistryHandler: Uygulama başlangıca eklendi: {AppName}");
-                    }
-                    else
-                    {
-                        // Anahtar varsa kaldır
-                        if (key.GetValue(AppName) != null)
+                        process?.WaitForExit();
+                        if (process?.ExitCode != 0)
                         {
-                            key.DeleteValue(AppName, false); // false: Değer yoksa hata verme
-                            Console.WriteLine($"RegistryHandler: Uygulama başlangıçtan kaldırıldı: {AppName}");
-                        }
-                        else
-                        {
-                            Console.WriteLine($"RegistryHandler: Uygulama zaten başlangıçta değildi: {AppName}");
+                            throw new Exception($"schtasks oluşturma işlemi hata kodu ({process?.ExitCode}) ile sonuçlandı.");
                         }
                     }
+                    Console.WriteLine($"RegistryHandler: Uygulama Görev Zamanlayıcısı'na eklendi: {AppName}");
+                }
+                else
+                {
+                    // Zamanlanmış görevi sil
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = "schtasks",
+                        Arguments = $"/delete /tn \"{AppName}\" /f",
+                        CreateNoWindow = true,
+                        UseShellExecute = false
+                    };
+
+                    using (Process? process = Process.Start(startInfo))
+                    {
+                        process?.WaitForExit();
+                        // ExitCode 0: Başarılı, 1: Görev bulunamadı (onu da başarı sayabiliriz)
+                    }
+                    Console.WriteLine($"RegistryHandler: Uygulama Görev Zamanlayıcısı'nden kaldırıldı: {AppName}");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"RegistryHandler Hata: Başlangıç ayarı değiştirilirken hata oluştu: {ex.Message}");
-                MessageBox.Show($"Windows başlangıç ayarı değiştirilirken bir hata oluştu:\n{ex.Message}\n\nLütfen uygulamayı yönetici olarak çalıştırmayı deneyin.",
-                                "Başlangıç Ayarı Hatası", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show($"Windows başlangıç ayarı Görev Zamanlayıcı ile değiştirilirken bir hata oluştu:\n{ex.Message}",
+                                "Görev Zamanlayıcı Hatası", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        /// <summary>
+        /// Eski Registry Run girdisini silerek temizler.
+        /// </summary>
+        private static void CleanLegacyRegistryRun()
+        {
+            try
+            {
+                using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(StartupRegistryPath, true))
+                {
+                    if (key != null && key.GetValue(AppName) != null)
+                    {
+                        key.DeleteValue(AppName, false);
+                        Console.WriteLine("RegistryHandler: Eski kayıt defteri başlangıç girdisi temizlendi.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"RegistryHandler: Eski kayıt defteri girdisi temizlenirken hata: {ex.Message}");
             }
         }
     }

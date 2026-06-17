@@ -21,12 +21,12 @@ CPU ve GPU sıcaklıklarınızı gerçek zamanlı olarak izlemek ve bunları min
     *   **Gizleme Gecikmesi:** Fare sıcak bölgeden ayrıldıktan sonra arayüzün gizlenmesi için ne kadar bekleneceğini yapılandırın.
     *   **Windows ile Başlat:** Uygulamanın Windows başladığında otomatik olarak başlatılmasını yapılandırın.
 *   **Yüksek Sıcaklık Önceliği:** Sıcaklıklar 'Yüksek' eşiğini aşarsa, Otomatik Gizleme ayarlarından bağımsız olarak arayüzü otomatik olarak görünür tutar ve sık sık günceller.
-*   **Ayarların Kaydedilmesi:** Tercihlerinizi (güncelleme aralıkları, renkler, eşikler, otomatik gizleme durumu ve windows ile başlatma ayarı dahil) Windows Kayıt Defteri'ne (`HKEY_CURRENT_USER\Software\ThermalApp`) kaydeder, böylece uygulama yeniden başlatıldığında ayarlarınız korunur.
+*   **Ayarların Kaydedilmesi:** Tercihlerinizi (güncelleme aralıkları, renkler, eşikler ve otomatik gizleme durumu dahil) Windows Kayıt Defteri'ne (`HKEY_CURRENT_USER\Software\ThermalApp`) kaydeder. "Windows ile Başlat" özelliği ise Windows Görev Zamanlayıcısı (`Task Scheduler`) üzerinde en yüksek yetkilerle çalışacak bir görev oluşturur.
 
 ## Kurulum ve Kullanım
 
 1.  **İndirme:** En son `Thermal.exe` dosyasını **[Releases (Sürümler)](https://github.com/emi-ran/Thermal-Watcher/releases/)** sayfasından indirin.
-2.  **Çalıştırma:** `Thermal.exe` dosyasını çalıştırın. Donanım sensör verilerine doğru şekilde erişebildiğinden emin olmak için **Yönetici olarak çalıştırılması** önerilir.
+2.  **Çalıştırma:** `Thermal.exe` dosyasını çalıştırın. Uygulama, donanım sensör verilerine erişebilmek için başlangıçta otomatik olarak **Yönetici yetkisi (UAC)** talep edecektir.
 3.  **Sistem Tepsisi:** Uygulama simgesi sistem tepsinizde görünecektir. Sağ tıklayarak şunları yapabilirsiniz:
     *   **Ayarlar...:** Davranışı ve görünümü özelleştirmek için ayarlar penceresini açın.
     *   **Otomatik Gizle:** Otomatik gizleme özelliğini açıp kapatın (durum kaydedilir).

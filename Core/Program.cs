@@ -1,8 +1,10 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using System.Threading; // Timer için
+using System.Security.Principal; // Yönetici yetkisi denetimi için
+using System.Diagnostics; // Process başlatma için
 using LibreHardwareMonitor.Hardware; // Gerekli using ifadesi
 using Thermal.Monitoring;
 using Thermal.Presentation;
@@ -30,6 +32,7 @@ namespace Thermal.Core
         private const int HOT_ZONE_STABILITY_THRESHOLD = 5; // Kararlılık için gereken tick sayısı (5 * 100ms = 500ms)
         private static bool autoHideEnabled; // Sadece tanımla
         private static bool isHighTemperatureOverrideActive = false; // Yüksek sıcaklık override durumu
+        private static Mutex? appMutex; // GC tarafından temizlenmemesi için statik tanımlandı
 
         // Sabitler (Kaldırıldı - Artık AppSettings kullanılıyor)
         // private const int SHORT_INTERVAL = 10000;
@@ -37,9 +40,43 @@ namespace Thermal.Core
         // private const int HIDE_DELAY = 5000;
         // private const int MOUSE_CHECK_INTERVAL = 250;
 
+        /// <summary>
+        /// Uygulamanın yönetici yetkileriyle çalışıp çalışmadığını kontrol eder.
+        /// </summary>
+        private static bool IsAdministrator()
+        {
+            using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+            {
+                WindowsPrincipal principal = new WindowsPrincipal(identity);
+                return principal.IsInRole(WindowsBuiltInRole.Administrator);
+            }
+        }
+
         [STAThread]
         static void Main()
         {
+            // Yönetici yetkisi kontrolü (LibreHardwareMonitor sürücüsü için zorunludur)
+            if (!IsAdministrator())
+            {
+                ProcessStartInfo startInfo = new ProcessStartInfo
+                {
+                    FileName = Application.ExecutablePath,
+                    UseShellExecute = true,
+                    Verb = "runas" // Windows UAC yönetici yetkisi istemini tetikler
+                };
+                try
+                {
+                    Process.Start(startInfo);
+                }
+                catch (Exception)
+                {
+                    // Kullanıcı UAC istemini reddetmiş olabilir
+                    MessageBox.Show("Uygulamanın sıcaklık sensörlerine erişebilmesi için yönetici yetkileri gereklidir.", 
+                                    "Yönetici Yetkisi Gerekli", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                return; // Yetkisiz örneği kapat
+            }
+
             // Hata ayıklama için konsolu aktif et (isteğe bağlı)
             // AllocConsole();
             Console.WriteLine("Uygulama Başlatılıyor...");
@@ -48,84 +85,94 @@ namespace Thermal.Core
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // Tek örnek kontrolü
-            Mutex mutex = new Mutex(true, "ThermalAppMutex", out bool createdNew);
+            // Tek örnek kontrolü (GC engellemesi için statik referans kullanılıyor)
+            appMutex = new Mutex(true, "ThermalAppMutex", out bool createdNew);
             if (!createdNew)
             {
                 MessageBox.Show("Uygulama zaten çalışıyor.", "Thermal", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                appMutex.Dispose();
+                appMutex = null;
                 return;
             }
 
-            // Ayarları Yükle
-            appSettings = RegistryHandler.LoadSettings();
-            // Otomatik Gizle durumunu yüklenen ayarlara göre belirle
-            autoHideEnabled = appSettings.AutoHideEnabledPreference;
-            // Eğer başlangıçta otomatik gizleme açıksa, gizleme zamanlayıcısını başlat
-            if (autoHideEnabled)
-            {
-                // Başlangıçta fare dışarıda varsayılır (isMouseOverHotZoneStable = false)
-                mouseLeftHotZoneTime = DateTime.Now;
-                Console.WriteLine("Başlangıçta Otomatik Gizleme aktif. Çıkış zamanı şimdi ayarlandı.");
-            }
-
-            // Donanım Monitörü başlat
             try
             {
-                hardwareMonitor = new HardwareMonitor();
-                if (!hardwareMonitor.Initialize())
-                { throw new Exception("LibreHardwareMonitor başlatılamadı."); }
-                Console.WriteLine("HardwareMonitor başlatıldı.");
-            }
-            catch (Exception ex)
-            { MessageBox.Show($"Donanım izleyici başlatılamadı: {ex.Message}", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error); Cleanup(mutex); return; }
-
-            // OverlayWindow oluştur ve başlangıç ayarlarını uygula
-            overlayWindow = new OverlayWindow();
-            ApplySettings(); // Yüklenen veya varsayılan ayarları uygula
-
-            // << YENİ BAŞLANGIÇ GÜNCELLEMESİ >>
-            try
-            {
-                if (hardwareMonitor != null)
+                // Ayarları Yükle
+                appSettings = RegistryHandler.LoadSettings();
+                // Otomatik Gizle durumunu yüklenen ayarlara göre belirle
+                autoHideEnabled = appSettings.AutoHideEnabledPreference;
+                // Eğer başlangıçta otomatik gizleme açıksa, gizleme zamanlayıcısını başlat
+                if (autoHideEnabled)
                 {
-                    hardwareMonitor.UpdateSensors(); // İlk okumayı yap
-                    float initialCpuTemp = hardwareMonitor.GetCpuTemperature();
-                    float initialGpuTemp = hardwareMonitor.GetGpuTemperature();
-                    overlayWindow.UpdateLabel("CPU", initialCpuTemp > 0 ? initialCpuTemp : -1);
-                    overlayWindow.UpdateLabel("GPU", initialGpuTemp > 0 ? initialGpuTemp : -1);
-                    overlayWindow.PositionOverlay(); // Labellar güncellendikten sonra ilk konumlandırmayı yap
-                    Console.WriteLine("İlk sıcaklık okuması ve konumlandırma yapıldı.");
+                    // Başlangıçta fare dışarıda varsayılır (isMouseOverHotZoneStable = false)
+                    mouseLeftHotZoneTime = DateTime.Now;
+                    Console.WriteLine("Başlangıçta Otomatik Gizleme aktif. Çıkış zamanı şimdi ayarlandı.");
                 }
+
+                // Donanım Monitörü başlat
+                try
+                {
+                    hardwareMonitor = new HardwareMonitor();
+                    if (!hardwareMonitor.Initialize())
+                    { throw new Exception("LibreHardwareMonitor başlatılamadı."); }
+                    Console.WriteLine("HardwareMonitor başlatıldı.");
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Donanım izleyici başlatılamadı: {ex.Message}", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // OverlayWindow oluştur ve başlangıç ayarlarını uygula
+                overlayWindow = new OverlayWindow();
+                ApplySettings(); // Yüklenen veya varsayılan ayarları uygula
+
+                // << YENİ BAŞLANGIÇ GÜNCELLEMESİ >>
+                try
+                {
+                    if (hardwareMonitor != null)
+                    {
+                        hardwareMonitor.UpdateSensors(); // İlk okumayı yap
+                        float initialCpuTemp = hardwareMonitor.GetCpuTemperature();
+                        float initialGpuTemp = hardwareMonitor.GetGpuTemperature();
+                        overlayWindow.UpdateLabel("CPU", initialCpuTemp > 0 ? initialCpuTemp : -1);
+                        overlayWindow.UpdateLabel("GPU", initialGpuTemp > 0 ? initialGpuTemp : -1);
+                        overlayWindow.PositionOverlay(); // Labellar güncellendikten sonra ilk konumlandırmayı yap
+                        Console.WriteLine("İlk sıcaklık okuması ve konumlandırma yapıldı.");
+                    }
+                }
+                catch (Exception ex)
+                { Console.WriteLine($"İlk güncelleme sırasında hata: {ex.Message}"); }
+                // << YENİ BAŞLANGIÇ GÜNCELLEMESİ SONU >>
+
+                overlayWindow.Shown += OverlayWindow_Shown;
+                Console.WriteLine("OverlayWindow oluşturuldu.");
+
+                // Sistem Tepsisi Yöneticisi oluştur ve olayları bağla
+                systemTrayHandler = new SystemTrayHandler();
+                systemTrayHandler.ExitRequested += OnExitRequested;
+                systemTrayHandler.AutoHideChanged += OnAutoHideChanged;
+                systemTrayHandler.SettingsRequested += OnSettingsRequested;
+                // Başlangıç işaretini yüklenen değere göre ayarla
+                systemTrayHandler.SetAutoHideState(autoHideEnabled);
+                Console.WriteLine("SystemTrayHandler oluşturuldu.");
+
+                // Timer'ları ayarla
+                SetupTimers();
+                Console.WriteLine("Timer'lar ayarlandı.");
+
+                // Overlay'ı göster
+                overlayWindow.Show();
+
+                // Uygulama mesaj döngüsünü başlat
+                Application.Run();
             }
-            catch (Exception ex)
-            { Console.WriteLine($"İlk güncelleme sırasında hata: {ex.Message}"); }
-            // << YENİ BAŞLANGIÇ GÜNCELLEMESİ SONU >>
-
-            overlayWindow.Shown += OverlayWindow_Shown;
-            Console.WriteLine("OverlayWindow oluşturuldu.");
-
-            // Sistem Tepsisi Yöneticisi oluştur ve olayları bağla
-            systemTrayHandler = new SystemTrayHandler();
-            systemTrayHandler.ExitRequested += OnExitRequested;
-            systemTrayHandler.AutoHideChanged += OnAutoHideChanged;
-            systemTrayHandler.SettingsRequested += OnSettingsRequested;
-            // Başlangıç işaretini yüklenen değere göre ayarla
-            systemTrayHandler.SetAutoHideState(autoHideEnabled);
-            Console.WriteLine("SystemTrayHandler oluşturuldu.");
-
-            // Timer'ları ayarla
-            SetupTimers();
-            Console.WriteLine("Timer'lar ayarlandı.");
-
-            // Overlay'ı göster
-            overlayWindow.Show();
-
-            // Uygulama mesaj döngüsünü başlat
-            Application.Run();
-
-            // Uygulama kapanırken temizlik yap
-            Cleanup(mutex);
-            Console.WriteLine("Uygulama kapatıldı.");
+            finally
+            {
+                // Uygulama çöktüğünde veya normal sonlandığında kilitlerin kalkması garanti altına alınır
+                Cleanup();
+                Console.WriteLine("Uygulama kapatıldı.");
+            }
         }
 
         private static void OverlayWindow_Shown(object? sender, EventArgs e)
@@ -386,7 +433,7 @@ namespace Thermal.Core
             Application.Exit();
         }
 
-        private static void Cleanup(Mutex? mutex = null)
+        private static void Cleanup()
         {
             Console.WriteLine("Temizlik yapılıyor...");
             StopTimers();
@@ -395,8 +442,20 @@ namespace Thermal.Core
             systemTrayHandler?.Dispose();
             overlayWindow?.Dispose();
             hardwareMonitor?.Dispose(); // Doğru metot adı
-            mutex?.ReleaseMutex();
-            mutex?.Dispose();
+            
+            if (appMutex != null)
+            {
+                try
+                {
+                    appMutex.ReleaseMutex();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Mutex bırakılırken hata: {ex.Message}");
+                }
+                appMutex.Dispose();
+                appMutex = null;
+            }
         }
 
         // Konsol API'leri

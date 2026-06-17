@@ -81,6 +81,14 @@ namespace Thermal.Presentation
                 return;
             }
 
+            // Güncelleme aralıklarını kontrol et (Normal <= Gizli olmalı)
+            if (numShortInterval.Value > numLongInterval.Value)
+            {
+                MessageBox.Show("Normal güncelleme aralığı, gizli güncelleme aralığından büyük olamaz.", "Geçersiz Ayar", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                numShortInterval.Focus();
+                return;
+            }
+
             // Ayarları güncelle
             currentSettings.ShortUpdateIntervalMs = Math.Max(1000, (int)numShortInterval.Value * 1000);
             currentSettings.LongUpdateIntervalMs = Math.Max(1000, (int)numLongInterval.Value * 1000);

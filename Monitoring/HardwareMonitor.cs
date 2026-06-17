@@ -37,6 +37,14 @@ namespace Thermal.Monitoring
             {
                 Console.WriteLine($"HardwareMonitor: Başlatma hatası: {ex.Message}");
                 MessageBox.Show($"Donanım bilgileri okunurken hata oluştu: {ex.Message}", "Hardware Monitor Hatası", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                try
+                {
+                    computer?.Close();
+                }
+                catch (Exception closeEx)
+                {
+                    Console.WriteLine($"HardwareMonitor: Kapatma hatası: {closeEx.Message}");
+                }
                 computer = null;
                 return false;
             }

@@ -63,7 +63,7 @@ namespace Thermal.Presentation
             overlayForm.ShowInTaskbar = false;
             overlayForm.TopMost = true;
             overlayForm.StartPosition = FormStartPosition.Manual;
-            overlayForm.BackColor = Color.Black;
+            overlayForm.BackColor = Color.Magenta; // Font yumuşatma sorunlarını gidermek için Magenta yapıldı
             overlayForm.TransparencyKey = overlayForm.BackColor;
             overlayForm.AutoSize = true;
             overlayForm.Padding = new Padding(0);
@@ -139,6 +139,10 @@ namespace Thermal.Presentation
             if (overlayForm.IsDisposed) return;
             try
             {
+                // Boyutların doğru alınabilmesi için yerleşimi zorla güncelle
+                flowPanel.PerformLayout();
+                overlayForm.PerformLayout();
+
                 int totalWidth = 0;
                 bool cpuVisible = cpuLabel.Visible;
                 bool gpuVisible = gpuLabel.Visible;
@@ -151,7 +155,8 @@ namespace Thermal.Presentation
                 var screen = Screen.PrimaryScreen;
                 if (screen != null)
                 {
-                    overlayForm.Location = new Point(screen.WorkingArea.Width - totalWidth - 5, 5);
+                    // WorkingArea.Width yerine WorkingArea.Right kullanılarak çoklu monitör/sol görev çubuğu kaymaları düzeltilir.
+                    overlayForm.Location = new Point(screen.WorkingArea.Right - totalWidth - 5, 5);
                     if (overlayForm.IsHandleCreated)
                         hotZone = new Rectangle(overlayForm.Left - 10, overlayForm.Top - 5, overlayForm.Width + 20, overlayForm.Height + 10);
                 }
