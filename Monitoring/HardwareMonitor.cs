@@ -4,7 +4,7 @@ using LibreHardwareMonitor.Hardware;
 
 namespace Thermal.Monitoring
 {
-    internal class HardwareMonitor : IDisposable
+    public class HardwareMonitor : IDisposable
     {
         private Computer? computer;
         private readonly UpdateVisitor updateVisitor;
@@ -55,59 +55,153 @@ namespace Thermal.Monitoring
             computer?.Accept(updateVisitor);
         }
 
-        public float GetCpuTemperature()
+        public List<string> GetCpuNames()
+        {
+            if (computer == null) return new List<string>();
+            return computer.Hardware
+                .Where(h => h.HardwareType == HardwareType.Cpu)
+                .Select(h => h.Name)
+                .Distinct()
+                .ToList();
+        }
+
+        public List<string> GetGpuNames()
+        {
+            if (computer == null) return new List<string>();
+            return computer.Hardware
+                .Where(h => h.HardwareType == HardwareType.GpuNvidia || h.HardwareType == HardwareType.GpuAmd || h.HardwareType == HardwareType.GpuIntel)
+                .Select(h => h.Name)
+                .Distinct()
+                .ToList();
+        }
+
+        public float GetCpuTemperature(string preferredCpuName = "", int sensorPreference = 0)
         {
             if (computer == null) return 0;
+
+            IHardware? cpu = null;
+            if (!string.IsNullOrEmpty(preferredCpuName))
+            {
+                cpu = computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu && h.Name.Equals(preferredCpuName, StringComparison.OrdinalIgnoreCase));
+            }
+            if (cpu == null)
+            {
+                cpu = computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
+            }
+            if (cpu == null) return 0;
 
             float packageTemp = 0;
             float coreMaxTemp = 0;
             float highestCoreTemp = 0;
             bool packageFound = false;
             bool coreMaxFound = false;
-
-            IHardware? cpu = computer.Hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
-            if (cpu == null) return 0;
+            bool highestCoreFound = false;
 
             foreach (var sensor in cpu.Sensors)
             {
-                if (sensor.SensorType == SensorType.Temperature && sensor.Value.HasValue)
+                if (sensor.SensorType == SensorType.Temperature && sensor.Value.HasValue && sensor.Value.Value > 0)
                 {
-                    if (sensor.Name.Contains("Package")) { packageTemp = sensor.Value.Value; packageFound = true; break; }
-                    else if (sensor.Name.Contains("Core Max")) { coreMaxTemp = Math.Max(coreMaxTemp, sensor.Value.Value); coreMaxFound = true; }
-                    else if (sensor.Name.Contains("Core") && !sensor.Name.Contains("Distance")) { highestCoreTemp = Math.Max(highestCoreTemp, sensor.Value.Value); }
+                    float val = sensor.Value.Value;
+                    if (sensor.Name.Contains("Package", StringComparison.OrdinalIgnoreCase)) { packageTemp = val; packageFound = true; }
+                    else if (sensor.Name.Contains("Core Max", StringComparison.OrdinalIgnoreCase)) { coreMaxTemp = Math.Max(coreMaxTemp, val); coreMaxFound = true; }
+                    else if (sensor.Name.Contains("Core", StringComparison.OrdinalIgnoreCase) && !sensor.Name.Contains("Distance", StringComparison.OrdinalIgnoreCase)) { highestCoreTemp = Math.Max(highestCoreTemp, val); highestCoreFound = true; }
                 }
             }
-            if (packageFound) return packageTemp;
+
+            // Sensor preferences: 0 = Package (default), 1 = Core Max, 2 = Max of any Core sensor
+            if (sensorPreference == 0 && packageFound) return packageTemp;
+            if (sensorPreference == 1 && coreMaxFound) return coreMaxTemp;
+            if (highestCoreFound) return highestCoreTemp;
             if (coreMaxFound) return coreMaxTemp;
-            return highestCoreTemp;
+            if (packageFound) return packageTemp;
+
+            return 0;
         }
 
-        public float GetGpuTemperature()
+        public float GetGpuTemperature(string preferredGpuName = "", int sensorPreference = 0)
         {
             if (computer == null) return 0;
 
-            IHardware? activeGpu = null;
-            float highestTemp = 0;
+            IHardware? gpu = null;
+            if (!string.IsNullOrEmpty(preferredGpuName))
+            {
+                gpu = computer.Hardware.FirstOrDefault(h => 
+                    (h.HardwareType == HardwareType.GpuNvidia || h.HardwareType == HardwareType.GpuAmd || h.HardwareType == HardwareType.GpuIntel) && 
+                    h.Name.Equals(preferredGpuName, StringComparison.OrdinalIgnoreCase));
+            }
 
+            if (gpu != null)
+            {
+                return GetGpuTempFromHardware(gpu, sensorPreference);
+            }
+
+            // Auto-detect among all available GPUs
             var gpus = computer.Hardware.Where(h => h.HardwareType == HardwareType.GpuNvidia || h.HardwareType == HardwareType.GpuAmd || h.HardwareType == HardwareType.GpuIntel).ToList();
             if (!gpus.Any()) return 0;
 
-            IHardware? nvidiaGpu = gpus.FirstOrDefault(h => h.HardwareType == HardwareType.GpuNvidia);
-            if (nvidiaGpu != null) { highestTemp = GetGpuTempFromHardware(nvidiaGpu); if (highestTemp > 0) activeGpu = nvidiaGpu; }
-            if (activeGpu == null) { IHardware? intelGpu = gpus.FirstOrDefault(h => h.HardwareType == HardwareType.GpuIntel); if (intelGpu != null) { float intelTemp = GetGpuTempFromHardware(intelGpu); if (intelTemp > 0) { activeGpu = intelGpu; highestTemp = intelTemp; } } }
-            if (activeGpu == null) { IHardware? amdGpu = gpus.FirstOrDefault(h => h.HardwareType == HardwareType.GpuAmd); if (amdGpu != null) { float amdTemp = GetGpuTempFromHardware(amdGpu); if (amdTemp > 0) { activeGpu = amdGpu; highestTemp = amdTemp; } } }
-            return highestTemp;
+            // Prefer Nvidia first, then AMD, then Intel
+            foreach (var activeGpu in gpus.OrderBy(g => g.HardwareType == HardwareType.GpuNvidia ? 0 : g.HardwareType == HardwareType.GpuAmd ? 1 : 2))
+            {
+                float temp = GetGpuTempFromHardware(activeGpu, sensorPreference);
+                if (temp > 0) return temp;
+            }
+
+            return 0;
         }
 
-        private float GetGpuTempFromHardware(IHardware gpu)
+        private float GetGpuTempFromHardware(IHardware gpu, int sensorPreference)
         {
             if (gpu == null) return 0;
-            float coreTemp = 0; float hotSpotTemp = 0; float genericTemp = 0;
-            bool coreFound = false; bool hotSpotFound = false; bool genericFound = false;
-            foreach (var sensor in gpu.Sensors) { if (sensor.SensorType == SensorType.Temperature && sensor.Value.HasValue) { if (gpu.HardwareType == HardwareType.GpuIntel && sensor.Name.Equals("GPU Temperature", StringComparison.OrdinalIgnoreCase)) { genericTemp = Math.Max(genericTemp, sensor.Value.Value); genericFound = true; } else if (sensor.Name.Contains("GPU Core", StringComparison.OrdinalIgnoreCase)) { coreTemp = Math.Max(coreTemp, sensor.Value.Value); coreFound = true; } else if (sensor.Name.Contains("Hot Spot", StringComparison.OrdinalIgnoreCase) || sensor.Name.Contains("Junction", StringComparison.OrdinalIgnoreCase)) { hotSpotTemp = Math.Max(hotSpotTemp, sensor.Value.Value); hotSpotFound = true; } else if (!coreFound && !hotSpotFound && !genericFound) { genericTemp = Math.Max(genericTemp, sensor.Value.Value); genericFound = true; } } }
-            if (hotSpotFound && hotSpotTemp > 0) return hotSpotTemp;
-            if (coreFound && coreTemp > 0) return coreTemp;
-            if (genericFound && genericTemp > 0) return genericTemp;
+            
+            float coreTemp = 0; 
+            float hotSpotTemp = 0; 
+            float genericTemp = 0;
+            bool coreFound = false; 
+            bool hotSpotFound = false; 
+            bool genericFound = false;
+
+            foreach (var sensor in gpu.Sensors) 
+            { 
+                if (sensor.SensorType == SensorType.Temperature && sensor.Value.HasValue && sensor.Value.Value > 0) 
+                { 
+                    float val = sensor.Value.Value;
+                    if (gpu.HardwareType == HardwareType.GpuIntel && sensor.Name.Equals("GPU Temperature", StringComparison.OrdinalIgnoreCase)) 
+                    { 
+                        genericTemp = Math.Max(genericTemp, val); 
+                        genericFound = true; 
+                    } 
+                    else if (sensor.Name.Contains("GPU Core", StringComparison.OrdinalIgnoreCase) || sensor.Name.Equals("GPU Temperature", StringComparison.OrdinalIgnoreCase)) 
+                    { 
+                        coreTemp = Math.Max(coreTemp, val); 
+                        coreFound = true; 
+                    } 
+                    else if (sensor.Name.Contains("Hot Spot", StringComparison.OrdinalIgnoreCase) || sensor.Name.Contains("Junction", StringComparison.OrdinalIgnoreCase)) 
+                    { 
+                        hotSpotTemp = Math.Max(hotSpotTemp, val); 
+                        hotSpotFound = true; 
+                    } 
+                    else 
+                    { 
+                        genericTemp = Math.Max(genericTemp, val); 
+                        genericFound = true; 
+                    } 
+                } 
+            }
+
+            // Sensor preference: 0 = Core (default), 1 = Hot Spot
+            if (sensorPreference == 0)
+            {
+                if (coreFound && coreTemp > 0) return coreTemp;
+                if (genericFound && genericTemp > 0) return genericTemp;
+                if (hotSpotFound && hotSpotTemp > 0) return hotSpotTemp;
+            }
+            else // Hot Spot preference
+            {
+                if (hotSpotFound && hotSpotTemp > 0) return hotSpotTemp;
+                if (coreFound && coreTemp > 0) return coreTemp;
+                if (genericFound && genericTemp > 0) return genericTemp;
+            }
+
             return 0;
         }
 

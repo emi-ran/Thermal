@@ -26,8 +26,10 @@ namespace Thermal.Core
         public bool StartWithWindows { get; set; } = false; // Windows ile başlama ayarı
         public bool AutoHideEnabledPreference { get; set; } = false; // Otomatik Gizle tercihi
 
-        // TODO: Ayarları dosyaya kaydetme/yükleme eklenebilir.
-        // public void Save() { ... }
-        // public static AppSettings Load() { ... }
+        // Donanım Seçimleri ve Tercihler
+        public string SelectedCpuName { get; set; } = ""; // Seçilen CPU adı (boş ise otomatik)
+        public string SelectedGpuName { get; set; } = ""; // Seçilen GPU adı (boş ise otomatik)
+        public int CpuSensorPreference { get; set; } = 0; // CPU sensör tercihi (0: Package, 1: Core Max, 2: Max Core)
+        public int GpuSensorPreference { get; set; } = 0; // GPU sensör tercihi (0: Core, 1: Hot Spot)
     }
 }

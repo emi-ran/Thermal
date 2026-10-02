@@ -133,8 +133,8 @@ namespace Thermal.Core
                     if (hardwareMonitor != null)
                     {
                         hardwareMonitor.UpdateSensors(); // İlk okumayı yap
-                        float initialCpuTemp = hardwareMonitor.GetCpuTemperature();
-                        float initialGpuTemp = hardwareMonitor.GetGpuTemperature();
+                        float initialCpuTemp = hardwareMonitor.GetCpuTemperature(appSettings.SelectedCpuName, appSettings.CpuSensorPreference);
+                        float initialGpuTemp = hardwareMonitor.GetGpuTemperature(appSettings.SelectedGpuName, appSettings.GpuSensorPreference);
                         overlayWindow.UpdateLabel("CPU", initialCpuTemp > 0 ? initialCpuTemp : -1);
                         overlayWindow.UpdateLabel("GPU", initialGpuTemp > 0 ? initialGpuTemp : -1);
                         overlayWindow.PositionOverlay(); // Labellar güncellendikten sonra ilk konumlandırmayı yap
@@ -212,7 +212,8 @@ namespace Thermal.Core
             {
                 // Yüksek sıcaklık öncelikli
                 bool useShortInterval = isHighTemperatureOverrideActive || isMouseOverHotZoneStable || !autoHideEnabled;
-                int newInterval = useShortInterval ? appSettings.ShortUpdateIntervalMs : appSettings.LongUpdateIntervalMs;
+                // Gizliyken sıcaklık yükselişlerini hızlı algılamak için aralığı maks 2000ms ile sınırlıyoruz
+                int newInterval = useShortInterval ? appSettings.ShortUpdateIntervalMs : Math.Min(2000, appSettings.LongUpdateIntervalMs);
                 if (updateTimer.Interval != newInterval)
                 {
                     updateTimer.Interval = newInterval;
@@ -230,8 +231,8 @@ namespace Thermal.Core
             try
             {
                 hardwareMonitor.UpdateSensors();
-                cpuTemp = hardwareMonitor.GetCpuTemperature();
-                gpuTemp = hardwareMonitor.GetGpuTemperature();
+                cpuTemp = hardwareMonitor.GetCpuTemperature(appSettings.SelectedCpuName, appSettings.CpuSensorPreference);
+                gpuTemp = hardwareMonitor.GetGpuTemperature(appSettings.SelectedGpuName, appSettings.GpuSensorPreference);
 
                 overlayWindow.UpdateLabel("CPU", cpuTemp > 0 ? cpuTemp : -1);
                 overlayWindow.UpdateLabel("GPU", gpuTemp > 0 ? gpuTemp : -1);
@@ -397,7 +398,7 @@ namespace Thermal.Core
         {
             Console.WriteLine("Ayarlar formu açılıyor...");
             StopTimers();
-            using (SettingsForm settingsForm = new SettingsForm(appSettings))
+            using (SettingsForm settingsForm = new SettingsForm(appSettings, hardwareMonitor))
             {
                 DialogResult result = settingsForm.ShowDialog();
                 if (result == DialogResult.OK)

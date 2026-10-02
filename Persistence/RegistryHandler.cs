@@ -56,6 +56,12 @@ namespace Thermal.Persistence // Namespace güncellendi
                     key.SetValue("StartWithWindows", settings.StartWithWindows ? 1 : 0, RegistryValueKind.DWord);
                     key.SetValue("AutoHideEnabledPreference", settings.AutoHideEnabledPreference ? 1 : 0, RegistryValueKind.DWord);
 
+                    // Donanım Seçimleri ve Tercihler
+                    key.SetValue("SelectedCpuName", settings.SelectedCpuName ?? "", RegistryValueKind.String);
+                    key.SetValue("SelectedGpuName", settings.SelectedGpuName ?? "", RegistryValueKind.String);
+                    key.SetValue("CpuSensorPreference", settings.CpuSensorPreference, RegistryValueKind.DWord);
+                    key.SetValue("GpuSensorPreference", settings.GpuSensorPreference, RegistryValueKind.DWord);
+
                     Console.WriteLine("RegistryHandler: Ayarlar başarıyla kaydedildi.");
                 }
             }
@@ -116,6 +122,12 @@ namespace Thermal.Persistence // Namespace güncellendi
                     settings.EnableMouseHoverShow = Convert.ToInt32(key.GetValue("EnableMouseHoverShow", settings.EnableMouseHoverShow ? 1 : 0)) == 1;
                     settings.StartWithWindows = Convert.ToInt32(key.GetValue("StartWithWindows", settings.StartWithWindows ? 1 : 0)) == 1;
                     settings.AutoHideEnabledPreference = Convert.ToInt32(key.GetValue("AutoHideEnabledPreference", settings.AutoHideEnabledPreference ? 1 : 0)) == 1;
+
+                    // Donanım Seçimleri ve Tercihler
+                    settings.SelectedCpuName = key.GetValue("SelectedCpuName", settings.SelectedCpuName)?.ToString() ?? "";
+                    settings.SelectedGpuName = key.GetValue("SelectedGpuName", settings.SelectedGpuName)?.ToString() ?? "";
+                    settings.CpuSensorPreference = Convert.ToInt32(key.GetValue("CpuSensorPreference", settings.CpuSensorPreference));
+                    settings.GpuSensorPreference = Convert.ToInt32(key.GetValue("GpuSensorPreference", settings.GpuSensorPreference));
 
                     Console.WriteLine("RegistryHandler: Ayarlar başarıyla yüklendi.");
                 }
